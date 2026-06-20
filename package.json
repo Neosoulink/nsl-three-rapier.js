@@ -1,5 +1,5 @@
 {
-	"name": "@nsl/three-rapier.js",
+	"name": "@nmnsl/three-rapier.js",
 	"version": "0.0.1",
 	"type": "module",
 	"sideEffects": false,
@@ -17,6 +17,7 @@
 	"homepage": "https://github.com/Neosoulink/nsl-three-rapier.js#readme",
 	"keywords": [
 		"neosoulink",
+		"nmnsl",
 		"nsl",
 		"three",
 		"rapier",
