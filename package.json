@@ -1,0 +1,58 @@
+{
+	"name": "@nsl/three-rapier.js",
+	"version": "0.0.1",
+	"type": "module",
+	"sideEffects": false,
+	"packageManager": "pnpm@10.26.1",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Neosoulink/nsl-three-rapier.js.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Neosoulink/nsl-three-rapier.js/issues"
+	},
+	"homepage": "https://github.com/Neosoulink/nsl-three-rapier.js#readme",
+	"keywords": [
+		"neosoulink",
+		"nsl",
+		"three",
+		"rapier",
+		"physics"
+	],
+	"files": [
+		"dist"
+	],
+	"main": "./dist/main.umd.cjs",
+	"module": "./dist/main.js",
+	"types": "./dist/src/main.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/src/main.d.ts",
+			"import": "./dist/main.js",
+			"require": "./dist/main.umd.cjs"
+		}
+	},
+	"scripts": {
+		"dev": "vite build --watch",
+		"build": "tsc && vite build",
+		"typecheck": "tsc",
+		"changeset": "changeset",
+		"version-packages": "changeset version",
+		"release": "pnpm build && changeset publish",
+		"prepublishOnly": "pnpm build"
+	},
+	"devDependencies": {
+		"@changesets/cli": "^2.31.0",
+		"@types/three": "^0.183.1",
+		"typescript": "~6.0.2",
+		"vite": "^8.0.12",
+		"vite-plugin-dts": "^4.5.4"
+	},
+	"peerDependencies": {
+		"@dimforge/rapier3d-compat": "^0.14.0",
+		"three": "^0.183.1"
+	}
+}

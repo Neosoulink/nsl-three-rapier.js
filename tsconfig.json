@@ -1,0 +1,35 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"useDefineForClassFields": true,
+		"skipLibCheck": true,
+
+		"declaration": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"noImplicitAny": false,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+
+		"strict": true,
+		"alwaysStrict": true,
+		"resolveJsonModule": true,
+		"strictNullChecks": true,
+		"preserveConstEnums": true,
+
+		"isolatedModules": true,
+		"moduleDetection": "force",
+		"sourceMap": true,
+
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true,
+
+		"outDir": "dist"
+	},
+	"include": ["src"]
+}
