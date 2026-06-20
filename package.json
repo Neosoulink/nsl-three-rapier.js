@@ -40,14 +40,19 @@
 		"dev": "vite build --watch",
 		"build": "tsc && vite build",
 		"typecheck": "tsc",
+		"commitlint": "commitlint --edit",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "pnpm build && changeset publish",
-		"prepublishOnly": "pnpm build"
+		"prepublishOnly": "pnpm build",
+		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.31.0",
+		"@commitlint/cli": "^21.0.2",
+		"@commitlint/config-conventional": "^21.0.2",
 		"@types/three": "^0.183.1",
+		"husky": "^9.1.7",
 		"typescript": "~6.0.2",
 		"vite": "^8.0.12",
 		"vite-plugin-dts": "^4.5.4"
