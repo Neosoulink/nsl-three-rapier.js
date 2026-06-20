@@ -24,6 +24,8 @@ jobs:
 
     env:
       HUSKY: "0"
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     steps:
       - name: Checkout
@@ -45,6 +47,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify npm authentication
+        run: |
+          npm whoami
+          npm config get registry
+
       - name: Create release pull request or publish to npm
         uses: changesets/action@v1
         with:
@@ -54,4 +61,3 @@ jobs:
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
