@@ -3,7 +3,7 @@ import {
 	EventQueue,
 	PhysicsHooks,
 	RigidBody,
-	RigidBodyType
+	RigidBodyType,
 } from "@dimforge/rapier3d-compat";
 
 import {
@@ -15,23 +15,25 @@ import {
 	Object3D,
 	Quaternion,
 	SphereGeometry,
-	Vector3
+	Vector3,
 } from "three";
 import { Object3DWithGeometry, PhysicsProperties } from "./types";
 
 let RAPIER: typeof Rapier | null | undefined = null;
 
 /**
- * @initial_author mrdoob | info@mrdoob.com
- *
  * @description Physics helper based on `Rapier`
  *
- * @docs https://rapier.rs/docs/api/javascript/JavaScript3D/
+ * @initial_author {@link https://github.com/mrdoob Mrdoob}
+ *
+ * @see {@link https://rapier.rs/docs/api/javascript/JavaScript3D/ Rapier.js}
+ * @see {@link https://github.com/mrdoob/three.js/blob/master/examples/jsm/physics/RapierPhysics.js Three.js RapierPhysics addon}
  */
 export class Physics {
 	private readonly _vector = new Vector3();
 	private readonly _position = new Vector3();
 	private readonly _quaternion = new Quaternion();
+	private readonly _parentQuaternion = new Quaternion();
 	private readonly _scale = new Vector3(1, 1, 1);
 	private readonly _matrix = new Matrix4();
 
@@ -54,6 +56,28 @@ export class Physics {
 		this.world = new this.rapier.World(gravity);
 	}
 
+	private _syncObjectTransformFromRigidBody(
+		object: Object3D,
+		worldPosition: Vector3,
+		worldQuaternion: Quaternion,
+	) {
+		const parent = object.parent;
+
+		if (parent) {
+			parent.updateWorldMatrix(true, false);
+			parent.worldToLocal(worldPosition);
+			parent.getWorldQuaternion(this._parentQuaternion);
+			object.position.copy(worldPosition);
+			object.quaternion
+				.copy(this._parentQuaternion.invert())
+				.multiply(worldQuaternion);
+			return;
+		}
+
+		object.position.copy(worldPosition);
+		object.quaternion.copy(worldQuaternion);
+	}
+
 	/**
 	 * @description Add the specified `object` to the physics `physicalObjects` map.
 	 *
@@ -68,21 +92,25 @@ export class Physics {
 		colliderDesc.setMass(mass);
 		colliderDesc.setRestitution(restitution);
 
+		object.updateWorldMatrix(true, false);
+		object.getWorldPosition(this._position);
+		object.getWorldQuaternion(this._quaternion);
+
 		const physicsProperties =
 			object instanceof InstancedMesh && !object.userData.useBoundingBox
 				? this.createInstancedPhysicsProperties(object, colliderDesc, mass)
 				: this.createPhysicsProperties(
 						colliderDesc,
-						object.position,
-						object.quaternion,
-						mass
+						this._position,
+						this._quaternion,
+						mass,
 					);
 
 		this.physicalObjects.push(object);
 		object.userData = {
 			...object.userData,
 			dynamicObjectIndex: this.physicalObjects.length - 1,
-			physicsProperties
+			physicsProperties,
 		};
 		this.physical3DObjectsMap.set(object, physicsProperties);
 
@@ -135,6 +163,11 @@ export class Physics {
 	 */
 	public getShape(object: Object3DWithGeometry) {
 		const positions = object?.geometry?.attributes?.position?.array;
+
+		object.updateWorldMatrix(true, false);
+		object.getWorldScale(this._scale);
+		const scale = this._scale;
+
 		let width = 0;
 		let height = 0;
 		let depth = 0;
@@ -151,44 +184,50 @@ export class Physics {
 			!object.userData.useBoundingBox
 		) {
 			const parameters = object.geometry.parameters;
+			const geometryRadius = parameters.radius ?? 1;
 
-			radius = parameters.radius ?? 1;
+			radius =
+				geometryRadius *
+				Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
 			colliderDesc = this.rapier.ColliderDesc.ball(radius);
 		} else if (positions && !object.userData.useBoundingBox) {
-			let minX = 0,
-				minY = 0,
-				minZ = 0,
-				maxX = 0,
-				maxY = 0,
-				maxZ = 0;
+			let minX = Infinity;
+			let minY = Infinity;
+			let minZ = Infinity;
+			let maxX = -Infinity;
+			let maxY = -Infinity;
+			let maxZ = -Infinity;
 
 			for (let i = 0; i < positions.length; i += 3) {
-				const _vector = new this.rapier.Vector3(
-					positions[i] ?? 0,
-					positions[i + 1] ?? 0,
-					positions[i + 2] ?? 0
-				);
+				const x = (positions[i] ?? 0) * scale.x;
+				const y = (positions[i + 1] ?? 0) * scale.y;
+				const z = (positions[i + 2] ?? 0) * scale.z;
 
-				minX = Math.min(minX, _vector.x);
-				minY = Math.min(minY, _vector.y);
-				minZ = Math.min(minZ, _vector.z);
-				maxX = Math.max(maxX, _vector.x);
-				maxY = Math.max(maxY, _vector.y);
-				maxZ = Math.max(maxZ, _vector.z);
+				minX = Math.min(minX, x);
+				minY = Math.min(minY, y);
+				minZ = Math.min(minZ, z);
+				maxX = Math.max(maxX, x);
+				maxY = Math.max(maxY, y);
+				maxZ = Math.max(maxZ, z);
 			}
 
 			width = maxX - minX;
 			height = maxY - minY;
 			depth = maxZ - minZ;
 
-			halfWidth = width / 2;
-			halfHeight = height / 2;
-			halfDepth = depth / 2;
+			halfWidth = width * 0.5;
+			halfHeight = height * 0.5;
+			halfDepth = depth * 0.5;
 
 			colliderDesc = this.rapier.ColliderDesc.cuboid(
 				halfWidth,
 				halfHeight,
-				halfDepth
+				halfDepth,
+			);
+			colliderDesc.setTranslation(
+				(minX + maxX) * 0.5,
+				(minY + maxY) * 0.5,
+				(minZ + maxZ) * 0.5,
 			);
 		} else {
 			const boundingBox = new Box3().setFromObject(object);
@@ -197,14 +236,26 @@ export class Physics {
 			height = boundingBox.max.y - boundingBox.min.y;
 			depth = boundingBox.max.z - boundingBox.min.z;
 
-			halfWidth = width / 2;
-			halfHeight = height / 2;
-			halfDepth = depth / 2;
+			halfWidth = width * 0.5;
+			halfHeight = height * 0.5;
+			halfDepth = depth * 0.5;
 
 			colliderDesc = this.rapier.ColliderDesc.cuboid(
 				halfWidth,
 				halfHeight,
-				halfDepth
+				halfDepth,
+			);
+
+			const colliderCenter = boundingBox.getCenter(this._vector);
+			object.getWorldPosition(this._position);
+			object.getWorldQuaternion(this._quaternion);
+			colliderCenter
+				.sub(this._position)
+				.applyQuaternion(this._quaternion.clone().invert());
+			colliderDesc.setTranslation(
+				colliderCenter.x,
+				colliderCenter.y,
+				colliderCenter.z,
 			);
 		}
 
@@ -215,7 +266,7 @@ export class Physics {
 			halfWidth,
 			halfHeight,
 			halfDepth,
-			colliderDesc
+			colliderDesc,
 		};
 	}
 
@@ -229,7 +280,7 @@ export class Physics {
 	public createInstancedPhysicsProperties(
 		mesh: InstancedMesh,
 		colliderDesc: Rapier.ColliderDesc,
-		mass?: number
+		mass?: number,
 	) {
 		const matrixArray = mesh.instanceMatrix.array;
 		const propsArray: PhysicsProperties[] = [];
@@ -237,7 +288,7 @@ export class Physics {
 		for (let i = 0; i < mesh.count; i++) {
 			const position = this._vector.fromArray(matrixArray, i * 16 + 12);
 			propsArray.push(
-				this.createPhysicsProperties(colliderDesc, position, undefined, mass)
+				this.createPhysicsProperties(colliderDesc, position, undefined, mass),
 			);
 		}
 
@@ -256,7 +307,7 @@ export class Physics {
 		colliderDesc: Rapier.ColliderDesc,
 		position: Rapier.Vector3,
 		rotation?: Rapier.Rotation,
-		mass = 0
+		mass = 0,
 	) {
 		const rigidBodyDesc =
 			mass > 0
@@ -267,11 +318,12 @@ export class Physics {
 
 		const rigidBody = this.world.createRigidBody(rigidBodyDesc);
 		const collider = this.world.createCollider(colliderDesc, rigidBody);
+
 		const result: PhysicsProperties = {
 			rigidBodyDesc,
 			rigidBody,
 			colliderDesc,
-			collider
+			collider,
 		};
 
 		return result;
@@ -283,7 +335,7 @@ export class Physics {
 	 */
 	public getPhysicsPropertiesFromObject(
 		object: Object3DWithGeometry,
-		index = 0
+		index = 0,
 	) {
 		const _physicsProperties = this.physical3DObjectsMap.get(object);
 		let body: PhysicsProperties | undefined;
@@ -309,12 +361,12 @@ export class Physics {
 	public setObjectPosition(
 		object: Object3DWithGeometry,
 		position: Rapier.Vector3,
-		index = 0
+		index = 0,
 	) {
 		/** @description Object physics properties (rigid body, collider, ...). */
 		const physicsProperties = this.getPhysicsPropertiesFromObject(
 			object,
-			index
+			index,
 		);
 		if (!physicsProperties) return;
 
@@ -336,11 +388,11 @@ export class Physics {
 	public setObjectVelocity(
 		object: Object3DWithGeometry,
 		velocity: Rapier.Vector3,
-		index = 0
+		index = 0,
 	) {
 		const physicsProperties = this.getPhysicsPropertiesFromObject(
 			object,
-			index
+			index,
 		);
 		if (!physicsProperties) return;
 
@@ -357,14 +409,14 @@ export class Physics {
 	public step(
 		timestep?: number,
 		eventQueue?: EventQueue,
-		hooks?: PhysicsHooks
+		hooks?: PhysicsHooks,
 	) {
 		if (typeof timestep === "number") this.world.timestep = timestep;
 		this.world.step(eventQueue, hooks);
 
 		for (let i = 0; i < this.physicalObjects.length; i++) {
 			const object = this.physicalObjects[i];
-			if (!object) continue;
+			if (!object || object.userData.ignorePhysics) continue;
 
 			if (!object?.userData.useBoundingBox && object instanceof InstancedMesh) {
 				const array = object.instanceMatrix.array;
@@ -412,8 +464,13 @@ export class Physics {
 			)
 				continue;
 
-			object.position.copy(props.rigidBody.translation());
-			object.quaternion.copy(props.rigidBody.rotation());
+			this._position.copy(props.rigidBody.translation());
+			this._quaternion.copy(props.rigidBody.rotation());
+			this._syncObjectTransformFromRigidBody(
+				object,
+				this._position,
+				this._quaternion,
+			);
 		}
 	}
 
@@ -424,10 +481,11 @@ export class Physics {
 	 */
 	public removePropsFromWorld(props?: PhysicsProperties | PhysicsProperties[]) {
 		if (Array.isArray(props))
-			(props as PhysicsProperties[]).map((_props) =>
-				this.removePropsFromWorld(_props)
+			return (props as PhysicsProperties[]).forEach((_props) =>
+				this.removePropsFromWorld(_props),
 			);
-		else if (props?.rigidBody instanceof RigidBody)
+
+		if (props?.rigidBody instanceof RigidBody)
 			this.world.removeRigidBody((props as PhysicsProperties).rigidBody);
 	}
 

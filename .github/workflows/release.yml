@@ -52,12 +52,13 @@ jobs:
           npm whoami
           npm config get registry
 
-      - name: Create release pull request or publish to npm
-        uses: changesets/action@v1
+      - name: Create Release Pull Request & Release
+        uses: changesets/action@v2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          pr-title: "chore(version): upgrade packages"
+          commit-message: "chore(version): upgrade packages"
+          create-github-releases: true
+          publish-script: pnpm run release
+          version-script: pnpm changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
